@@ -1,0 +1,54 @@
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: "Create VPC"
+      ec2_vpc_net:
+        name: ansible
+        cidr_block: 10.0.0.0/16
+        region: eu-west-2
+        tags:
+          Name: ansible_vpc
+          app: ansible
+          env: dev
+        state: present
+      register: ansible_vpc
+
+    - name: Create subnet
+      ec2_vpc_subnet:
+        region: eu-west-2
+        vpc_id: "{{ ansible_vpc.vpc.id }}"
+        cidr: 10.0.1.0/24
+        map_public: yes
+        tags:
+          Name: ansible_subnet
+          app: ansible
+          env: dev
+        state: present
+      register: ansible_subnet
+
+    - name: Create internet gateway
+      ec2_vpc_igw:
+        vpc_id: "{{ ansible_vpc.vpc.id }}"
+        region: eu-west-2
+        state: present
+        tags: 
+          Name: ansible_igw
+          app: ansible
+          env: dev
+      register: igw
+
+    - name: Route IGW
+      ec2_vpc_route_table:
+        vpc_id: "{{ ansible_vpc.vpc.id }}"
+        region: eu-west-2
+        subnets:
+          - "{{ ansible_subnet.subnet.id }}"
+        routes: 
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ igw.gateway_id }}"
+        tags: 
+          Name: ansible-public
+
